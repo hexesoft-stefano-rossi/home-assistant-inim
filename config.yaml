@@ -1,0 +1,50 @@
+﻿name: "Hexesoft Inim"
+description: "Bridge Inim in Home Assistant"
+version: "1.0.0"
+slug: "hexesoft_inim"
+arch:
+  - aarch64
+  - amd64
+init: false
+map:
+  - config:rw
+
+# Valori di default che appariranno nella schermata di configurazione
+options:
+  inim:
+    host: ""
+    port: 6004
+    password: ""
+    pin: "0000"
+    connection_type: 2
+  
+  mqtt:
+    host: ""
+    port: 1883
+    username: ""
+    password: ""
+    base_topic: "inim_bridge"
+    discovery_prefix: "homeassistant"
+    
+  system_settings:
+    log_level: "info"
+
+# Regole di validazione per i campi della configurazione
+schema:
+  inim:
+    host: str
+    port: port
+    password: password
+    pin: password
+    connection_type: int(0,2)
+    
+  mqtt:
+    host: str
+    port: port
+    username: str?
+    password: password?
+    base_topic: str
+    discovery_prefix: str
+    
+  system_settings:
+    log_level: list(debug|info|warning|error|critical)
