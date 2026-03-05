@@ -10,10 +10,10 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copia i tuoi file
-COPY Hexesoft-BTicino .
+COPY Hexesoft-Inim .
 
 # Diamo i permessi di esecuzione direttamente al programma
-RUN chmod +x /app/Hexesoft-BTicino
+RUN chmod +x /app/Hexesoft-Inim
 
 # Avviamo il programma nativamente 
-CMD [ "/app/Hexesoft-BTicino" ]
+CMD [ "/app/Hexesoft-Inim" ]
