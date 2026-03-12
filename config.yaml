@@ -1,15 +1,14 @@
 name: "Hexesoft Inim"
-description: >
-  Bridge TCP diretto tra la centrale Inim Prime PR500 e Home Assistant via MQTT.
-  Scopre automaticamente le zone configurate e pubblica lo stato in tempo reale.
+description: "Bridge tra centrale Inim Prime PR500 e Home Assistant via MQTT."
 version: "1.0.1"
-slug: "hexesoft_mitsubishi"
+slug: "hexesoft_inim"
 arch:
   - aarch64
   - amd64
-init: false
-map:
-  - config:rw
+host_network: true
+startup: application
+boot: auto
+
 
 options:
   inim:
@@ -29,9 +28,6 @@ options:
     discoveryprefix: "homeassistant"
 
   systemsettings:
-    # Livello di log sulla console dell'add-on
-    # "infon" = solo transizioni ON/OFF (uso normale)
-    # "debug"       = dettaglio completo del protocollo (diagnosi problemi)
     loglevel: "info"
 
 schema:
@@ -52,9 +48,4 @@ schema:
     discoveryprefix: str
 
   systemsettings:
-    # Livello log: solo i valori dell'elenco sono accettati
-    loglevel:
-      - "debug"
-      - "info"
-      - "warning"
-      - "error"
+    log_level: list(info|debug|warning|error)
