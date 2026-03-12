@@ -1,50 +1,166 @@
-﻿name: "Hexesoft Inim"
-description: "Bridge Inim in Home Assistant"
-version: "1.0.0"
-slug: "hexesoft_inim"
+# ════════════════════════════════════════════════════════════════════════════
+#  config.yaml
+#
+#  Manifesto dell'Add-on Home Assistant per il Bridge Inim → HA.
+#
+#  COSA FA QUESTO FILE:
+#  Definisce come l'Add-on appare nell'interfaccia di Home Assistant:
+#  - Nome, descrizione, versione visibile nel pannello Add-on Store
+#  - Le opzioni configurabili dall'utente (mostrate nel tab "Configurazione")
+#  - Lo schema di validazione (tipi, valori obbligatori/facoltativi)
+#  - I permessi di rete e accesso al broker MQTT
+#
+#  COME FUNZIONA L'INTEGRAZIONE CON /data/options.json:
+#  Quando l'utente salva la configurazione nell'interfaccia HA, il supervisore
+#  di HA scrive i valori in /data/options.json dentro il container dell'add-on.
+#  Il bridge legge quel file all'avvio tramite Program.cs.
+#
+#  STRUTTURA DEL options.json GENERATO DA HA:
+#  HA genera un JSON con struttura NIDIFICATA che segue le sezioni qui definite.
+#  Esempio:
+#  {
+#    "inim": { "host": "192.168.1.100", "port": 6004, ... },
+#    "mqtt": { "host": "core-mosquitto", "port": 1883, ... },
+#    "systemsettings": { "loglevel": "information" }
+#  }
+#
+#  NOTA: Le sezioni nidificate qui sotto ("inim:", "mqtt:", "systemsettings:")
+#  corrispondono ESATTAMENTE alle sezioni lette in Program.cs con GetSection().
+# ════════════════════════════════════════════════════════════════════════════
+
+# ── Metadati dell'Add-on ────────────────────────────────────────────────────
+
+# Identificatore univoco dell'add-on (deve corrispondere alla cartella)
+name: "Hexesoft Inim Bridge"
+
+# Versione dell'add-on (aggiornare ad ogni release)
+version: "3.0.0"
+
+# Breve descrizione mostrata nel pannello Add-on Store di HA
+description: >
+  Bridge TCP diretto tra la centrale Inim Prime PR500 e Home Assistant via MQTT.
+  Scopre automaticamente le zone configurate e pubblica lo stato in tempo reale.
+
+# URL della documentazione dell'add-on (opzionale)
+url: "https://github.com/hexesoft-stefano-rossi/inim-bridge"
+
+# Architetture supportate dall'immagine Docker dell'add-on
 arch:
-  - aarch64
-  - amd64
-init: false
-map:
-  - config:rw
+  - aarch64   # Raspberry Pi 4, 5 (64-bit) → la piattaforma più comune per HA
+  - amd64     # PC x86_64 e VM
+  - armv7     # Raspberry Pi 2/3 (32-bit)
+  - armhf     # Raspberry Pi Zero e simili
 
-# Valori di default che appariranno nella schermata di configurazione
+# ── Permessi e accesso alla rete ───────────────────────────────────────────
+
+# Abilita l'accesso alla rete del host per la connessione TCP alla centrale
+# (necessario per raggiungere la SmartLAN sulla LAN locale)
+host_network: false
+
+# Permette all'add-on di accedere al broker MQTT integrato di HA
+# (necessario per MQTTnet che si connette a core-mosquitto o broker esterno)
+services:
+  - mqtt:need  # Dichiara la dipendenza dal servizio MQTT di HA
+
+# ── Schema delle opzioni configurabili ──────────────────────────────────────
+#
+# Ogni opzione qui definita viene mostrata nel tab "Configurazione" dell'add-on.
+# I tipi supportati da HA: str, int, bool, float, list, select, password
+# Il suffisso "?" indica che il campo è opzionale (può essere omesso o vuoto)
+
 options:
+  # Sezione INIM: parametri di connessione alla centrale
   inim:
-    host: ""
+    # Indirizzo IP della SmartLAN / PrimeLAN (obbligatorio)
+    host: "192.168.1.100"
+    # Porta TCP della SmartLAN (default: 6004)
     port: 6004
+    # Password di accesso alla SmartLAN (obbligatoria)
     password: ""
+    # PIN utente della centrale (default: 0000)
     pin: "0000"
-    connection_type: 2
-  
-  mqtt:
-    host: ""
-    port: 1883
-    username: ""
-    password: ""
-    base_topic: "inim_bridge"
-    discovery_prefix: "homeassistant"
-    
-  system_settings:
-    log_level: "info"
+    # Tipo di connessione: 2 = PRIMELAN/SMARTLAN TCP diretta
+    connectiontype: 2
+    # Secondi tra un ciclo di polling e il successivo (3-30 consigliati)
+    contactpollinterval: 5
 
-# Regole di validazione per i campi della configurazione
+  # Sezione MQTT: parametri di connessione al broker
+  mqtt:
+    # Indirizzo IP del broker MQTT (usa "core-mosquitto" per il broker HA integrato)
+    host: "core-mosquitto"
+    # Porta TCP del broker (default: 1883 non cifrato, 8883 TLS)
+    port: 1883
+    # Username broker (vuoto = connessione anonima)
+    username: ""
+    # Password broker (vuoto = nessuna password)
+    password: ""
+    # Prefisso base per tutti i topic del bridge
+    basetopic: "inim_bridge"
+    # Prefisso per l'auto-discovery di HA (non modificare salvo necessità)
+    discoveryprefix: "homeassistant"
+
+  # Sezione SISTEMA: parametri di configurazione del bridge
+  systemsettings:
+    # Livello di log sulla console dell'add-on
+    # "information" = solo transizioni ON/OFF (uso normale)
+    # "debug"       = dettaglio completo del protocollo (diagnosi problemi)
+    loglevel: "information"
+
+# ── Schema di validazione ───────────────────────────────────────────────────
+#
+# Lo schema serve a HA per validare i valori prima di salvarli.
+# Deve rispecchiare ESATTAMENTE la struttura di "options" sopra.
+
 schema:
   inim:
+    # Indirizzo IP obbligatorio (stringa non vuota)
     host: str
-    port: port
+    # Porta TCP: numero intero obbligatorio
+    port: int
+    # Password: tipo password (viene mascherata nell'interfaccia HA)
     password: password
-    pin: password
-    connection_type: int(0,2)
-    
+    # PIN: stringa (può contenere zeri iniziali, es. "0042")
+    pin: str
+    # Tipo connessione: intero (fisso a 2 per PRIMELAN)
+    connectiontype: int
+    # Intervallo polling in secondi: intero
+    contactpollinterval: int
+
   mqtt:
+    # Host broker: stringa obbligatoria
     host: str
-    port: port
+    # Porta broker: intero obbligatorio
+    port: int
+    # Username: stringa opzionale (il "?" indica opzionale in HA)
     username: str?
+    # Password: tipo password opzionale
     password: password?
-    base_topic: str
-    discovery_prefix: str
-    
-  system_settings:
-    log_level: list(debug|info|warning|error|critical)
+    # Topic base: stringa obbligatoria
+    basetopic: str
+    # Prefisso discovery: stringa obbligatoria
+    discoveryprefix: str
+
+  systemsettings:
+    # Livello log: solo i valori dell'elenco sono accettati
+    loglevel:
+      - "debug"
+      - "information"
+      - "warning"
+      - "error"
+
+# ── Configurazione del container Docker ────────────────────────────────────
+
+# Immagine Docker del bridge (da pubblicare su GHCR o Docker Hub)
+image: "ghcr.io/hexesoft-stefano-rossi/inim-bridge/{arch}"
+
+# Mappa delle porte esposte (il bridge non espone porte: usa solo TCP uscente e MQTT)
+ports: {}
+
+# Il bridge non ha bisogno di accesso al filesystem dell'host HA
+map: []
+
+# Limite di risorse (opzionale, buona pratica per add-on su Raspberry Pi)
+# Commentare o rimuovere se la centrale ha molte zone
+# resources:
+#   memory: 256m
+#   cpu: 0.5
