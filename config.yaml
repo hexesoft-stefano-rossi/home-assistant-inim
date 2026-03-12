@@ -34,7 +34,7 @@
 name: "Hexesoft Inim Bridge"
 
 # Versione dell'add-on (aggiornare ad ogni release)
-version: "3.0.0"
+version: "1.0.1"
 
 # Breve descrizione mostrata nel pannello Add-on Store di HA
 description: >
