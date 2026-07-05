@@ -1,6 +1,6 @@
 name: "Hexesoft Inim"
 description: "Bridge tra centrale Inim Prime PR500 e Home Assistant via MQTT."
-version: "1.0.1"
+version: "1.0.2"
 slug: "hexesoft_inim"
 arch:
   - aarch64
@@ -48,4 +48,4 @@ schema:
     discoveryprefix: str
 
   systemsettings:
-    log_level: list(info|debug|warning|error)
+    loglevel: list(info|debug|warning|error)
