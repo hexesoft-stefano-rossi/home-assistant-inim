@@ -20,7 +20,7 @@ Il device MQTT principale mostra anche modello, firmware e serial della centrale
 
 ## Perché
 
-L'app ufficiale Inim Cloud e il PrimeSDK originale sono lenti per un utilizzo tipico di domotica: il ciclo di refresh non scende sotto qualche secondo. Questo bridge riscritto usa una connessione TCP dedicata al polling zone (architettura dual-TCP), riportando la reazione dei sensori sotto il secondo — livello utilizzabile anche per automazioni real-time in Home Assistant (es. accendere una luce quando si apre una porta).
+Questo bridge riscritto usa una connessione TCP dedicata al polling zone (architettura dual-TCP), riportando la reazione dei sensori sotto il secondo — livello utilizzabile anche per automazioni real-time in Home Assistant (es. accendere una luce quando si apre una porta).
 
 Il bridge non richiede né modifiche alla configurazione centrale né SIA-IP / Nexus. Basta che la centrale sia raggiungibile in LAN sulla porta 6004.
 

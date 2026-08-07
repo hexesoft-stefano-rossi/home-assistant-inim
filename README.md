@@ -2,8 +2,6 @@
 
 Bridge .NET 9 che collega centrali antifurto **Inim Prime** (via protocollo PRIMELAN reversato, TCP porta 6004) a **Home Assistant** tramite MQTT auto-discovery.
 
-Non usa l'SDK ufficiale `PrimeSDK 2.7` (troppo lento nel polling): il protocollo è stato ricostruito via reverse engineering delle librerie originali.
-
 ## Architettura
 
 Doppia connessione TCP alla centrale, un solo processo:
