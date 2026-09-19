@@ -1,77 +1,24 @@
-# Hexesoft Inim → Home Assistant Bridge
+# Home Assistant App: Hexesoft Inim Bridge
 
-Bridge .NET 9 che collega centrali antifurto **Inim Prime** (via protocollo PRIMELAN reversato, TCP porta 6004) a **Home Assistant** tramite MQTT auto-discovery.
+Bridge tra centrali antifurto Inim Prime e Home Assistant via MQTT.
 
-## Architettura
+![Supports aarch64 Architecture][aarch64-shield]
 
-Doppia connessione TCP alla centrale, un solo processo:
+## About
 
-- **TCP MAIN** (`_protocol`): comandi arm/disarm/scenari/uscite ricevuti da MQTT, poll metadata (aree, uscite, log eventi ogni ~5s).
-- **TCP ZONE** (`_zoneProtocol`): busy-poll dedicato dei terminali (~300ms), non contende con MAIN. Se la centrale rifiuta la seconda TCP il zone loop fa fallback su MAIN con lock esterno.
+You can use this app (formerly known as add-on) to connect an **Inim Prime** intruder alarm panel (PR060 / PR120 / PR240 / PR500, firmware 3.x / 4.x) to Home Assistant. The bridge talks to the panel on the local network over the native PRIMELAN protocol (TCP port 6004, AES-128-CBC encrypted) and publishes every zone, area, scenario, output and diagnostic sensor to your MQTT broker using Home Assistant auto-discovery — no manual entity configuration required.
 
-## Cosa espone in HA
+Once running, Home Assistant automatically shows:
 
-| Componente HA | Origine dati | Cosa fa |
-|---|---|---|
-| `binary_sensor` per **zona** | Busy-poll cmd 7 `GET_TERMINAL_STATUS` su TCP ZONE dedicata | Sensori di movimento / contatti in tempo reale |
-| `alarm_control_panel` per **area** | Poll AppHome + cmd 3 `ARM_PARTITION` | Stato + arm/disarm Totale (Away) / Parziale (Home) |
-| `switch` bistabile per **coppia scenario** (On + Off automatico) | Discovery EEPROM + cmd 12 `ARM_SCENARIO` + cmd 5 `GET_SCENARIO modo=0` per stato | Attivazione bidirezionale scenari; stato sempre sincronizzato con la centrale |
-| `switch` per **uscita/sirena** | Discovery EEPROM + cmd 8 `ATTIVA_USCITE` | ON/OFF relè, sirene, attuatori |
-| `sensor` "Ultimo Evento" | cmd 18 + read EEPROM + cmd 31 filter_logger + resolver | Storico eventi decodificati (evento, area, agente, locazione, categoria) |
-| ~20 sensori diagnostici (batteria, rete, GSM, tamper, tensioni, correnti) | cmd 64 `DATI_APP` (bundle) | Salute centrale |
-| Button globali Stop Sirene / Reset Memoria / Rimuovi Tutto | cmd 57, 16 + cleanup MQTT | Azioni panel-wide |
+- one `binary_sensor` per zone with sub-second responsiveness (motion, door contacts, tamper)
+- one `alarm_control_panel` per area for arm/disarm in Away / Home / Disarm modes
+- one `switch` for every On/Off scenario pair and every output/siren
+- a "Last Event" sensor with a decoded history of the last events (who armed what, from which keypad, when)
+- a full diagnostic device with mains/battery/bus voltages, tamper flags, radio jamming and communication faults
+- global "Stop Sirens", "Reset Alarm Memory" and "Remove All" buttons
 
-## Struttura codice
+The bridge requires no configuration changes on the panel itself and no cloud services (SIA-IP / Nexus / Inim Cloud) — just LAN reachability of the SmartLAN interface on port 6004.
 
-```
-Bridge/BridgeService.cs      → orchestrator (discovery + due poll loop paralleli + handler MQTT)
-Inim/InimProtocol.cs         → framing PRIMELAN + AES + CRC + tutti i comandi
-Inim/EventDecoder.cs         → risolve indici (codice/scenario/area) in nomi umani per log eventi
-Inim/*Info, *Status, *Data   → modelli dati
-Mqtt/BrokerClient.cs         → wrapper MQTTnet con dispatcher unico
-Mqtt/HaPublisher.cs          → discovery + publish + subscribe HA
-Configuration/AppSettings.cs → caricamento JSON (HA options.json → fallback appsettings.json)
-Program.cs                   → entry point + DI + logging
-```
+For installation and configuration details see [DOCS.md](DOCS.md).
 
-## Configurazione
-
-`appsettings.json` per sviluppo locale, `/data/options.json` in add-on Home Assistant. Il campo `contactpollinterval` (secondi) controlla la cadenza del poll metadata; le zone girano indipendentemente sulla TCP dedicata.
-
-## Build & run
-
-```bash
-dotnet build
-dotnet run
-```
-
-In DEBUG (Visual Studio) genera `log-inim-YYYYMMDD-HHmmss.txt` nel bin. In release solo console.
-
-## Come è fatto il protocollo
-
-Frame outer PRIMELAN (12 B header): `[SP][riservato][size][expected]`.
-Frame interno standard (10 B): `[PP][CRC16][op][size][riservato]` + payload cifrato AES-128-CBC (chiave = password padded, IV = `i XOR key[i]`).
-
-- Operazione `0x0000` = PROT_READ (lettura EEPROM diretta)
-- Operazione `0x0001` = PROT_COMMAND (esecuzione comando API, prima uint32 = codice comando)
-- PIN packato: ogni cifra ASCII → valore numerico (`'5'` → `0x05`), padding `0xFF`
-
-Comandi principali usati:
-- 3 `ARM_PARTITION` — inserimento/disinserimento aree
-- 5 `GET_SCENARIO` — bitmap scenari (modo=0 attivi, modo=1 usabili)
-- 6 `GET_AREE` — stato aree (non più usato direttamente, in AppHome)
-- 7 `GET_TERMINAL_STATUS` — stato real-time zone (batch di 20)
-- 8 `ATTIVA_USCITE` — accende/spegne uscite
-- 12 `ARM_SCENARIO` — esegue uno scenario (indice 0-based)
-- 16 `RESET_MEMORY` — reset memoria allarmi
-- 18 `LEGGI_LOGGER` — puntatori buffer eventi
-- 23 `INFO_CENTRALE` — modello/firmware/serial
-- 31 `GET_LOGGER_RULES` — indirizzi filter_logger + max_ev_values
-- 57 `STOP_ACTIONS` — silenzia sirene / stop telefonate
-- 64 `DATI_APP` — bundle home (aree + status + uscite bitmap)
-
-Per dettagli tecnici sui singoli comandi guardare `Inim/InimProtocol.cs` — le costanti in cima e i commenti nei metodi documentano offset, size e semantica di ogni struttura wire.
-
-## Licenza
-
-Uso interno Hexesoft.
+[aarch64-shield]: https://img.shields.io/badge/aarch64-yes-green.svg
