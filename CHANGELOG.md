@@ -14,6 +14,174 @@ Il numero di versione segue la convenzione MAJOR.MINOR.PATCH:
 
 ---
 
+## 1.2.5
+
+### Documentazione
+- **Riscritta la sezione finale "Note tecniche per curiosi" di DOCS.md**
+  in forma più sintetica. La versione precedente entrava nel dettaglio di
+  nomi di protocollo, numeri di comando e strutture interne della
+  centrale; adesso descrive solo, ad alto livello, i due canali di
+  comunicazione verso la centrale (uno dedicato al polling delle zone,
+  l'altro a comandi/scenari/log), il fatto che ogni azione viaggia con
+  il PIN dell'utente che l'ha richiesta, e la riconnessione automatica.
+  Nessun cambio di comportamento, solo documentazione.
+
+---
+
+## 1.2.4
+
+### Correzioni
+- **L'add-on non si spegne più se la centrale rifiuta la connessione
+  all'avvio.** Capita tipicamente quando l'installatore sta scrivendo la
+  programmazione dalla centrale col software Prime/STUDIO (la SmartLAN
+  rifiuta connessioni in quel momento), quando la centrale si sta
+  riavviando dopo un aggiornamento, o quando la rete fa i capricci. Fino
+  alla 1.2.3 un singolo rifiuto bastava a far crashare l'add-on, che
+  andava riavviato a mano. Dalla 1.2.4 il bridge aspetta e riprova con
+  cadenza crescente (5, 10, 20, 40, poi 60 secondi) fino a quando la
+  centrale torna raggiungibile.
+- Il messaggio nei log è più chiaro: invece di stampare uno stack trace
+  di "SocketException 10061", adesso scrive *"Centrale 192.168.x.y:6004
+  ha rifiutato la connessione TCP (SmartLAN occupata, centrale in
+  programmazione o porta chiusa?)"*, oppure *"Timeout di 15s
+  connettendomi a ... (host offline, rete non raggiungibile o firewall?)"*.
+  Lo stesso trattamento vale sia per la connessione iniziale sia per le
+  riconnessioni a regime dopo un errore di comunicazione.
+
+---
+
+## 1.2.3
+
+### Novità — Permessi richiesti al codice del bridge in centrale
+
+La raccomandazione introdotta nella 1.2.0 ("crea un utente dedicato
+al bridge con permessi di sola autenticazione") era insufficiente: senza
+nessun permesso, la centrale non lascia leggere nemmeno lo stato in
+tempo reale degli scenari, e il bridge finisce per considerare sempre
+"disinseriti" gli scenari che l'utente ha appena attivato dal tastierino
+HA. Il circuit-breaker messo in 1.2.2 per mascherare il problema è stato
+rimosso (perdeva la sincronizzazione con comandi dati dal tastierino
+fisico, un prezzo troppo alto).
+
+Il modello corretto è: il codice del bridge deve avere i permessi minimi
+di **LETTURA** su tutto, e **nessun** permesso di scrittura.
+
+**Permessi da assegnare al codice "HA Bridge" nella centrale** (software
+Prime/STUDIO, scheda Codici):
+- Tipo: **Utente**
+- **Tutte le aree** spuntate sulla colonna di sinistra (Casa 1/2/3, Garage,
+  Esterno 1/2/3, eventuali altre). Spuntare un'area dà il permesso di
+  leggerne lo stato, non di armarla.
+- Abilitazioni: spuntare solo **"Menu visualizzazione"** e
+  **"Menu gestione allarmi"**. Tutte le altre devono restare non spuntate.
+- Abilitazione uscite (riquadro a destra): tutte NON spuntate.
+
+Con questi permessi la centrale lascia al PIN del bridge la lettura
+completa (stato aree, bitmap scenari attivi, memoria allarmi, diagnostica)
+ma rifiuta qualunque azione (ARM/DISARM/scenari/sirene/memoria) perché
+manca il "Menu inserimenti" e le altre abilitazioni di gestione. Quelle
+azioni continueranno a funzionare solo quando saranno lanciate col PIN
+di un utente vero digitato nel popup di Home Assistant.
+
+### Correzioni / Rimosso
+- Rimosso il circuit-breaker 1.2.2 che disabilitava automaticamente la
+  sincronizzazione degli scenari quando il PIN del bridge appariva
+  read-only. Dava sì stabilità al lucchetto "attivato dall'utente ma
+  rilevato come inattivo dalla centrale", ma al prezzo di ignorare per
+  sempre le azioni fatte dal tastierino fisico. Con i nuovi permessi
+  descritti qui sopra la sincronizzazione torna a funzionare in entrambe
+  le direzioni.
+
+---
+
+## 1.2.1
+
+### Correzioni
+- **Gli scenari ora compaiono anche col PIN "service account" read-only.**
+  Chi, seguendo la guida di 1.2.0, ha messo nel `config.yaml` il PIN di un
+  utente Inim di sola lettura si trovava con tutte le entità lock degli
+  scenari sparite dalla dashboard (Home Assistant diceva "Entità non
+  trovata"). Era un filtro troppo stretto nella fase di discovery: il
+  bridge chiedeva alla centrale "quali scenari è autorizzato ad attivare
+  questo PIN?" e, giustamente, la centrale rispondeva "nessuno". Il
+  filtro adesso usa solo il nome registrato in centrale per distinguere
+  scenari veri dai placeholder di fabbrica ("Scenario 25", "Scenario 26",
+  ecc.): se lo scenario esiste, viene pubblicato in HA. L'autorizzazione
+  viene comunque controllata al momento del click, con il PIN digitato
+  dall'utente nel popup.
+- Lo stesso problema potrebbe presentarsi anche dopo aver cambiato l'utente
+  della centrale associato al bridge: non serve più riavviare o ripartire
+  da zero, basta aggiornare a questa versione.
+
+---
+
+## 1.2.0
+
+### Novità — PIN obbligatorio per ogni azione, PIN di sistema solo in lettura
+
+Questa versione cambia il modello di sicurezza del ponte. L'obiettivo è che
+il PIN scritto in `config.yaml` possa essere un codice "innocuo", capace
+solo di leggere lo stato della centrale, e che ogni azione che cambia
+davvero qualcosa (inserire, disinserire, applicare uno scenario, fermare
+sirene, ecc.) richieda il PIN del vero utente, digitato lì per lì sul
+tastierino di Home Assistant.
+
+**Cosa devi fare prima di aggiornare**
+
+Nel software di programmazione Inim, crea un utente dedicato al ponte (per
+esempio chiamalo "HA Bridge") con:
+- accesso in lettura a tutte le aree,
+- **nessun permesso** di inserimento, disinserimento, scenari e comandi
+  globali (ferma sirene, cancella chiamate, cancella memoria).
+
+Poi, in `config.yaml` dell'add-on, metti il PIN di quel nuovo utente nel
+campo `inim.pin`. Se qualcuno dovesse leggere il file di configurazione o
+un backup, trova un PIN che non può disinserire l'allarme.
+
+**Novità in Home Assistant**
+
+- **Inserimento area protetto da PIN.** Il tile `alarm_control_panel`
+  adesso apre il tastierino PIN anche quando premi "Fuori casa" o "In casa",
+  non solo su "Disattiva". Niente modifiche alla dashboard: i tile esistenti
+  si adeguano al primo riavvio.
+- **"Ferma allarmi", "Cancella telefonate", "Cancella memoria" ora
+  richiedono il PIN.** Questi 3 comandi non sono più pulsanti semplici: sono
+  diventati lucchetti (entità `lock`). Cliccandoli HA apre il tastierino PIN
+  come per gli scenari, poi esegue l'azione e il lucchetto si "richiude"
+  da solo.
+
+  **Modifica necessaria nelle dashboard**: dove oggi hai
+  `button.stop_sirene`, `button.cancella_telefonate` o
+  `button.reset_memoria_allarmi`, sostituisci con:
+  - `lock.stop_sirene`
+  - `lock.cancella_telefonate`
+  - `lock.reset_memoria_allarmi`
+
+  Al primo riavvio i vecchi `button.*` spariscono dal registro HA e
+  compaiono al loro posto i nuovi `lock.*`.
+
+### Rimosso
+- **Fallback silenzioso sul PIN di sistema.** Prima, se un'azione partiva
+  senza PIN, il bridge usava di nascosto il PIN di `config.yaml`. Adesso
+  non più: senza PIN valido nel popup l'azione viene rifiutata e nei log
+  dell'add-on vedi scritto "senza PIN utente: rifiutato". Questo riguarda
+  inserimento/disinserimento aree, scenari e i 3 comandi globali.
+
+### Note di sicurezza
+- Il PIN in `config.yaml` adesso serve **solo** per polling, discovery e
+  lettura del log eventi. Non viene mai usato per cambiare lo stato della
+  centrale, né è disponibile un'opzione per tornare al vecchio
+  comportamento: ogni azione richiede il PIN digitato dall'utente, senza
+  eccezioni. Per questo conviene che il PIN qui dentro sia di un utente
+  Inim creato apposta, con permessi di sola lettura: se un domani il file
+  di configurazione o un backup finissero in mani sbagliate, quel PIN non
+  può comunque disinserire niente.
+- Tutte le azioni che cambiano stato della centrale vengono tracciate nel
+  log Inim col nome dell'utente reale (quello del PIN digitato), non più
+  genericamente col nome del ponte.
+
+---
+
 ## 1.1.4
 
 ### Correzioni
